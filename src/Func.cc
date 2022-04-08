@@ -133,6 +133,231 @@ std::string render_call_stack()
 	return rval;
 	}
 
+class ExecProfileStats {
+public:
+	ExecProfileStats() {}
+	ExecProfileStats(std::string arg_name) : name(std::move(arg_name)) {}
+
+	virtual ~ExecProfileStats() { }
+
+	const auto Name() const { return name; }
+
+	int NumCalls() const { return ncalls; }
+	double CPUTime() const { return CPU_time; }
+	uint64_t Memory() const { return memory; }
+
+	void AddIn(const ExecProfileStats* eps, bool bump_num_calls = true)
+		{
+		if ( bump_num_calls )
+			ncalls += eps->NumCalls();
+
+		CPU_time += eps->CPUTime();
+		memory += eps->Memory();
+		}
+
+	void AddIn(double delta_CPU_time, uint64_t delta_memory)
+		{
+		CPU_time += delta_CPU_time;
+		memory += delta_memory;
+		}
+
+	void SetStats(double arg_CPU_time, uint64_t arg_memory)
+		{
+		CPU_time = arg_CPU_time;
+		memory = arg_memory;
+		}
+
+	void NewCall() { ++ncalls; }
+
+private:
+	std::string name;
+
+	int ncalls = 0;
+	double CPU_time = 0.0;
+	uint64_t memory = 0;
+};
+
+class ExecProfile : public ExecProfileStats {
+public:
+	ExecProfile(const Func* func, const detail::StmtPtr& body)
+		: ExecProfileStats(func->Name())
+		{
+		is_BiF = body == nullptr;
+
+		if ( is_BiF )
+			loc = *func->GetLocationInfo();
+		else
+			loc = *body->GetLocationInfo();
+		}
+
+	void StartActivation();
+	void EndActivation();
+
+	void ChildFinished(const ExecProfile* child);
+
+	bool IsBiF() const { return is_BiF; }
+
+	double DeltaCPUTime() const { return delta_stats.CPUTime(); }
+	uint64_t DeltaMemory() const { return delta_stats.Memory(); }
+
+	void Report() const;
+
+private:
+	ExecProfileStats child_stats;
+
+	bool is_BiF;
+	detail::Location loc;
+
+	// These are ephemeral, relevant between Start and End activations.
+	ExecProfileStats start_stats;
+
+	// Defined for the last activation period.
+	ExecProfileStats delta_stats;
+};
+
+double curr_CPU_time_XXX()
+	{
+	struct timespec ts;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
+	return double(ts.tv_sec) + double(ts.tv_nsec) / 1e9;
+	}
+
+void ExecProfile::StartActivation()
+	{
+	NewCall();
+
+	uint64_t start_memory;
+	util::get_memory_usage(&start_memory, nullptr);
+	start_stats.SetStats(curr_CPU_time_XXX(), start_memory);
+	}
+
+void ExecProfile::EndActivation()
+	{
+	uint64_t end_memory;
+	util::get_memory_usage(&end_memory, nullptr);
+
+	delta_stats.SetStats(curr_CPU_time_XXX() - start_stats.CPUTime(), end_memory - start_stats.Memory());
+
+	AddIn(&delta_stats, false);
+	}
+
+void ExecProfile::ChildFinished(const ExecProfile* child)
+	{
+	child_stats.AddIn(child->DeltaCPUTime(), child->DeltaMemory());
+	}
+
+void ExecProfile::Report() const
+	{
+	if ( is_BiF )
+		printf("BiF %s %d %.06f CPU, %lld memory\n",
+			Name().c_str(), NumCalls(), CPUTime(), Memory());
+
+	else
+		printf("%s (%s:%d) %d %.06f (%.06f) CPU, %lld (%lld) memory\n",
+			Name().c_str(), loc.filename, loc.first_line,
+			NumCalls(), CPUTime(), child_stats.CPUTime(),
+			Memory(), child_stats.Memory());
+	}
+
+class ExecProfileMgr {
+public:
+	~ExecProfileMgr();
+
+	void StartInvocation(const Func* f, const detail::StmtPtr& body = nullptr);
+	void EndInvocation();
+
+private:
+	std::vector<ExecProfile*> call_stack;
+	std::unordered_map<const Obj*, std::unique_ptr<ExecProfile>> profiles;
+	std::unordered_map<const Obj*, const Func*> body_to_func;
+	std::vector<const Obj*> objs; // just for more natural printing order
+};
+
+ExecProfileMgr::~ExecProfileMgr()
+	{
+	ASSERT(call_stack.empty());
+
+	ExecProfileStats total_stats;
+	ExecProfileStats BiF_stats;
+	std::unordered_map<const Func*, ExecProfileStats> func_stats;
+
+	for ( auto o : objs )
+		{
+		auto p = profiles[o].get();
+		profiles[o]->Report();
+
+		total_stats.AddIn(p);
+
+		if ( p->IsBiF() )
+			BiF_stats.AddIn(p);
+		else
+			{
+			ASSERT(body_to_func.count(o) > 0);
+			auto func = body_to_func[o];
+
+			if ( func_stats.count(func) == 0 )
+				func_stats[func] = ExecProfileStats(func->Name());
+
+			func_stats[func].AddIn(p);
+			}
+		}
+
+	for ( auto& fs : func_stats )
+		{
+		auto func = fs.first;
+		auto& fp = fs.second;
+		if ( func->GetBodies().size() > 1 )
+			printf("%s all-bodies %d %.06f CPU, %lld memory\n",
+				fp.Name().c_str(), fp.NumCalls(), fp.CPUTime(), fp.Memory());
+		}
+
+	printf("BiF all-BiFs %d %.06f CPU, %lld memory\n",
+		BiF_stats.NumCalls(), BiF_stats.CPUTime(), BiF_stats.Memory());
+
+	printf("total all-calls %d %.06f CPU, %lld memory\n",
+		total_stats.NumCalls(), total_stats.CPUTime(), total_stats.Memory());
+	}
+
+void ExecProfileMgr::StartInvocation(const Func* f, const detail::StmtPtr& body)
+	{
+	const Obj* o = body ? static_cast<Obj*>(body.get()) : f;
+	auto associated_prof = profiles.find(o);
+	ExecProfile* ep;
+
+	if ( associated_prof == profiles.end() )
+		{
+		auto new_ep = std::make_unique<ExecProfile>(f, body);
+		ep = new_ep.get();
+		profiles[o] = std::move(new_ep);
+		objs.push_back(o);
+
+		if ( body )
+			body_to_func[o] = f;
+		}
+	else
+		ep = associated_prof->second.get();
+
+	ep->StartActivation();
+	call_stack.push_back(ep);
+	}
+
+void ExecProfileMgr::EndInvocation()
+	{
+	ASSERT(! call_stack.empty());
+	auto ep = call_stack.back();
+	call_stack.pop_back();
+
+	ep->EndActivation();
+
+	if ( ! call_stack.empty() )
+		{
+		auto parent = call_stack.back();
+		parent->ChildFinished(ep);
+		}
+	}
+
+auto epm = std::make_unique<ExecProfileMgr>();
+
 Func::Func()
 	{
 	unique_id = unique_ids.size();
@@ -363,9 +588,6 @@ bool ScriptFunc::IsPure() const
 
 ValPtr ScriptFunc::Invoke(zeek::Args* args, Frame* parent) const
 	{
-#ifdef PROFILE_BRO_FUNCTIONS
-	DEBUG_MSG("Function: %s\n", Name());
-#endif
 	SegmentProfiler prof(segment_logger, location);
 
 	if ( sample_logger )
@@ -432,6 +654,9 @@ ValPtr ScriptFunc::Invoke(zeek::Args* args, Frame* parent) const
 				f->SetElement(j, arg);
 			}
 
+		if ( epm )
+			epm->StartInvocation(this, body.stmts);
+
 		f->Reset(args->size());
 
 		try
@@ -453,6 +678,9 @@ ValPtr ScriptFunc::Invoke(zeek::Args* args, Frame* parent) const
 			// Continue exec'ing remaining bodies of hooks/events.
 			continue;
 			}
+
+		if ( epm )
+			epm->EndInvocation();
 
 		if ( f->HasDelayed() )
 			{
@@ -773,9 +1001,9 @@ bool BuiltinFunc::IsPure() const
 
 ValPtr BuiltinFunc::Invoke(Args* args, Frame* parent) const
 	{
-#ifdef PROFILE_BRO_FUNCTIONS
-	DEBUG_MSG("Function: %s\n", Name());
-#endif
+	if ( epm )
+		epm->StartInvocation(this);
+
 	SegmentProfiler prof(segment_logger, Name());
 
 	if ( sample_logger )
@@ -787,7 +1015,11 @@ ValPtr BuiltinFunc::Invoke(Args* args, Frame* parent) const
 	CheckPluginResult(handled, hook_result, FUNC_FLAVOR_FUNCTION);
 
 	if ( handled )
+		{
+		if ( epm )
+			epm->EndInvocation();
 		return hook_result;
+		}
 
 	if ( g_trace_state.DoTrace() )
 		{
@@ -809,6 +1041,9 @@ ValPtr BuiltinFunc::Invoke(Args* args, Frame* parent) const
 
 		g_trace_state.LogTrace("\tFunction return: %s\n", d.Description());
 		}
+
+	if ( epm )
+		epm->EndInvocation();
 
 	return result;
 	}
