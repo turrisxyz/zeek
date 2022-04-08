@@ -294,8 +294,6 @@ static void terminate_zeek()
 	// the termination process.
 	file_mgr->Terminate();
 
-	script_coverage_mgr.WriteStats();
-
 	if ( zeek_done )
 		event_mgr.Enqueue(zeek_done, Args{});
 
@@ -335,6 +333,8 @@ static void terminate_zeek()
 	plugin_mgr->FinishPlugins();
 
 	finish_script_execution();
+
+	script_coverage_mgr.WriteStats();
 
 	delete zeekygen_mgr;
 	delete packet_mgr;
