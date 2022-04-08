@@ -205,8 +205,8 @@ protected:
 	DescStyle style;
 
 	void* base; // beginning of buffer
-	unsigned int offset; // where we are in the buffer
-	unsigned int size; // size of buffer in bytes
+	uint64_t offset; // where we are in the buffer
+	uint64_t size; // size of buffer in bytes
 
 	bool utf8; // whether valid utf-8 sequences may pass through unescaped
 	bool escape; // escape unprintable characters in output?
