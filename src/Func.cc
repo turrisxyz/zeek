@@ -5,18 +5,6 @@
 
 #include "zeek/zeek-config.h"
 
-#include <sys/stat.h>
-#include <sys/types.h>
-#ifdef TIME_WITH_SYS_TIME
-#include <sys/time.h>
-#include <time.h>
-#else
-#ifdef HAVE_SYS_TIME_H
-#include <sys/time.h>
-#else
-#include <time.h>
-#endif
-#endif
 #include <broker/error.hh>
 #include <ctype.h>
 #include <errno.h>
@@ -25,7 +13,6 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/param.h>
-#include <sys/resource.h>
 #include <unistd.h>
 #include <algorithm>
 
@@ -142,9 +129,12 @@ public:
 
 	const auto Name() const { return name; }
 
+	int NumInstances() const { return ninstances; }
 	int NumCalls() const { return ncalls; }
 	double CPUTime() const { return CPU_time; }
 	uint64_t Memory() const { return memory; }
+
+	void AddInstance() { ++ninstances; }
 
 	void AddIn(const ExecProfileStats* eps, bool bump_num_calls = true)
 		{
@@ -172,6 +162,7 @@ public:
 private:
 	std::string name;
 
+	int ninstances = 0;
 	int ncalls = 0;
 	double CPU_time = 0.0;
 	uint64_t memory = 0;
@@ -179,9 +170,10 @@ private:
 
 class ExecProfile : public ExecProfileStats {
 public:
-	ExecProfile(const Func* func, const detail::StmtPtr& body)
-		: ExecProfileStats(func->Name())
+	ExecProfile(const Func* _func, const detail::StmtPtr& body)
+		: ExecProfileStats(_func->Name())
 		{
+		func = _func;
 		is_BiF = body == nullptr;
 
 		if ( is_BiF )
@@ -200,13 +192,14 @@ public:
 	double DeltaCPUTime() const { return delta_stats.CPUTime(); }
 	uint64_t DeltaMemory() const { return delta_stats.Memory(); }
 
-	void Report() const;
+	void Report(FILE* f) const;
 
 private:
-	ExecProfileStats child_stats;
-
+	const Func* func;
 	bool is_BiF;
 	detail::Location loc;
+
+	ExecProfileStats child_stats;
 
 	// These are ephemeral, relevant between Start and End activations.
 	ExecProfileStats start_stats;
@@ -215,20 +208,13 @@ private:
 	ExecProfileStats delta_stats;
 };
 
-double curr_CPU_time_XXX()
-	{
-	struct timespec ts;
-	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-	return double(ts.tv_sec) + double(ts.tv_nsec) / 1e9;
-	}
-
 void ExecProfile::StartActivation()
 	{
 	NewCall();
 
 	uint64_t start_memory;
 	util::get_memory_usage(&start_memory, nullptr);
-	start_stats.SetStats(curr_CPU_time_XXX(), start_memory);
+	start_stats.SetStats(util::curr_CPU_time(), start_memory);
 	}
 
 void ExecProfile::EndActivation()
@@ -236,7 +222,7 @@ void ExecProfile::EndActivation()
 	uint64_t end_memory;
 	util::get_memory_usage(&end_memory, nullptr);
 
-	delta_stats.SetStats(curr_CPU_time_XXX() - start_stats.CPUTime(), end_memory - start_stats.Memory());
+	delta_stats.SetStats(util::curr_CPU_time() - start_stats.CPUTime(), end_memory - start_stats.Memory());
 
 	AddIn(&delta_stats, false);
 	}
@@ -246,27 +232,36 @@ void ExecProfile::ChildFinished(const ExecProfile* child)
 	child_stats.AddIn(child->DeltaCPUTime(), child->DeltaMemory());
 	}
 
-void ExecProfile::Report() const
+void ExecProfile::Report(FILE* f) const
 	{
-	if ( is_BiF )
-		printf("BiF %s %d %.06f CPU, %lld memory\n",
-			Name().c_str(), NumCalls(), CPUTime(), Memory());
+	std::string l;
 
+	if ( loc.first_line == 0 )
+		// Rather than just formatting the no-location loc, we'd like
+		// a version that doesn't have a funky "line 0" in it, nor
+		// an embedded blank.
+		l = "<no-location>";
 	else
-		printf("%s (%s:%d) %d %.06f (%.06f) CPU, %lld (%lld) memory\n",
-			Name().c_str(), loc.filename, loc.first_line,
-			NumCalls(), CPUTime(), child_stats.CPUTime(),
-			Memory(), child_stats.Memory());
+		l = std::string(loc.filename) + ":" + std::to_string(loc.first_line);
+
+	std::string ftype = is_BiF ? "BiF" : func->GetType()->FlavorString();
+
+	fprintf(f, "%s\t%s\t%s\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
+		Name().c_str(), l.c_str(), ftype.c_str(), NumCalls(),
+		CPUTime(), child_stats.CPUTime(),
+		Memory(), child_stats.Memory());
 	}
 
 class ExecProfileMgr {
 public:
+	ExecProfileMgr(FILE* _f) : f(_f) { }
 	~ExecProfileMgr();
 
 	void StartInvocation(const Func* f, const detail::StmtPtr& body = nullptr);
 	void EndInvocation();
 
 private:
+	FILE* f;
 	std::vector<ExecProfile*> call_stack;
 	std::unordered_map<const Obj*, std::unique_ptr<ExecProfile>> profiles;
 	std::unordered_map<const Obj*, const Func*> body_to_func;
@@ -281,15 +276,22 @@ ExecProfileMgr::~ExecProfileMgr()
 	ExecProfileStats BiF_stats;
 	std::unordered_map<const Func*, ExecProfileStats> func_stats;
 
+	fprintf(f, "#fields\tfunction\tlocation\ttype\tncall\ttot_CPU\tchild_CPU\ttot_Mem\tchild_Mem\n");
+	fprintf(f, "#types\tstring\tstring\tstring\tcount\tinterval\tinterval\tcount\tcount\n");
+
 	for ( auto o : objs )
 		{
 		auto p = profiles[o].get();
-		profiles[o]->Report();
+		profiles[o]->Report(f);
 
+		total_stats.AddInstance();
 		total_stats.AddIn(p);
 
 		if ( p->IsBiF() )
+			{
+			BiF_stats.AddInstance();
 			BiF_stats.AddIn(p);
+			}
 		else
 			{
 			ASSERT(body_to_func.count(o) > 0);
@@ -306,16 +308,17 @@ ExecProfileMgr::~ExecProfileMgr()
 		{
 		auto func = fs.first;
 		auto& fp = fs.second;
-		if ( func->GetBodies().size() > 1 )
-			printf("%s all-bodies %d %.06f CPU, %lld memory\n",
-				fp.Name().c_str(), fp.NumCalls(), fp.CPUTime(), fp.Memory());
+		auto n = func->GetBodies().size();
+		if ( n > 1 )
+			fprintf(f, "%s\t%lu-locations\t%s\t%d\t%.06f\t%0.6f\t%lld\t%lld\n",
+				fp.Name().c_str(), n, func->GetType()->FlavorString().c_str(), fp.NumCalls(), fp.CPUTime(), 0.0, fp.Memory(), 0LL);
 		}
 
-	printf("BiF all-BiFs %d %.06f CPU, %lld memory\n",
-		BiF_stats.NumCalls(), BiF_stats.CPUTime(), BiF_stats.Memory());
+	fprintf(f, "all-BiFs\t%d-locations\tBiF\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
+		BiF_stats.NumInstances(), BiF_stats.NumCalls(), BiF_stats.CPUTime(), 0.0, BiF_stats.Memory(), 0LL);
 
-	printf("total all-calls %d %.06f CPU, %lld memory\n",
-		total_stats.NumCalls(), total_stats.CPUTime(), total_stats.Memory());
+	fprintf(f, "total\t%d-locations\tTOTAL\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
+		total_stats.NumInstances(), total_stats.NumCalls(), total_stats.CPUTime(), 0.0, total_stats.Memory(), 0LL);
 	}
 
 void ExecProfileMgr::StartInvocation(const Func* f, const detail::StmtPtr& body)
@@ -356,7 +359,7 @@ void ExecProfileMgr::EndInvocation()
 		}
 	}
 
-auto epm = std::make_unique<ExecProfileMgr>();
+auto epm = std::make_unique<ExecProfileMgr>(stdout);
 
 Func::Func()
 	{
