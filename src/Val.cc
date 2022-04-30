@@ -1377,10 +1377,20 @@ static void find_nested_record_types(const TypePtr& t, std::set<RecordType*>* fo
 		case TYPE_RECORD:
 			{
 			auto rt = t->AsRecordType();
+
+			// Track records currently being analyzed, to avoid
+			// infinite loops in the face of recursive records.
+			static std::unordered_set<const RecordType*> analyzed_records;
+			if ( analyzed_records.count(rt) > 0 )
+				return;
+
+			analyzed_records.insert(rt);
 			found->emplace(rt);
 
 			for ( auto i = 0; i < rt->NumFields(); ++i )
 				find_nested_record_types(rt->FieldDecl(i)->type, found);
+
+			analyzed_records.erase(rt);
 			}
 			return;
 		case TYPE_TABLE:
