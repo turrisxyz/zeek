@@ -74,6 +74,20 @@ static std::string escape_string(const u_char* b, int len)
 	return res + "\"";
 	}
 
+std::string describe_type(const TypePtr& t)
+	{
+	auto& tn = t->GetName();
+
+	if ( tn.empty() )
+		{
+		ODesc d;
+		t->Describe(&d);
+		return d.Description();
+		}
+	else
+		return tn;
+	}
+
 ValTrace::ValTrace(const ValPtr& _v) : v(_v)
 	{
 	t = v->GetType();
@@ -593,21 +607,21 @@ std::string ValDelta::Generate(ValTraceMgr* vtm) const
 
 std::string DeltaReplaceValue::Generate(ValTraceMgr* vtm) const
 	{
-	return std::string(" = ") + vtm->ValName(new_val);
+	return std::string(" = ") + vtm->GenValName(new_val);
 	}
 
 std::string DeltaSetField::Generate(ValTraceMgr* vtm) const
 	{
 	auto rt = vt->GetType()->AsRecordType();
 	auto f = rt->FieldName(field);
-	return std::string("$") + f + " = " + vtm->ValName(new_val);
+	return std::string("$") + f + " = " + vtm->GenValName(new_val);
 	}
 
 std::string DeltaRemoveField::Generate(ValTraceMgr* vtm) const
 	{
 	auto rt = vt->GetType()->AsRecordType();
 	auto f = rt->FieldName(field);
-	return std::string("delete ") + vtm->ValName(vt) + "$" + f;
+	return std::string("delete ") + vtm->GenValName(vt) + "$" + f;
 	}
 
 std::string DeltaRecordCreate::Generate(ValTraceMgr* vtm) const
@@ -626,7 +640,7 @@ std::string DeltaRecordCreate::Generate(ValTraceMgr* vtm) const
 			if ( ! args.empty() )
 				args += ", ";
 
-			args += std::string("$") + rt->FieldName(i) + "=" + vtm->ValName(v_i);
+			args += std::string("$") + rt->FieldName(i) + "=" + vtm->GenValName(v_i);
 			}
 		}
 
@@ -639,17 +653,17 @@ std::string DeltaRecordCreate::Generate(ValTraceMgr* vtm) const
 
 std::string DeltaSetSetEntry::Generate(ValTraceMgr* vtm) const
 	{
-	return std::string("add ") + vtm->ValName(vt) + "[" + vtm->ValName(index) + "]";
+	return std::string("add ") + vtm->GenValName(vt) + "[" + vtm->GenValName(index) + "]";
 	}
 
 std::string DeltaSetTableEntry::Generate(ValTraceMgr* vtm) const
 	{
-	return std::string("[") + vtm->ValName(index) + "] = " + vtm->ValName(new_val);
+	return std::string("[") + vtm->GenValName(index) + "] = " + vtm->GenValName(new_val);
 	}
 
 std::string DeltaRemoveTableEntry::Generate(ValTraceMgr* vtm) const
 	{
-	return std::string("delete ") + vtm->ValName(vt) + "[" + vtm->ValName(index) + "]";
+	return std::string("delete ") + vtm->GenValName(vt) + "[" + vtm->GenValName(index) + "]";
 	}
 
 std::string DeltaSetCreate::Generate(ValTraceMgr* vtm) const
@@ -664,7 +678,7 @@ std::string DeltaSetCreate::Generate(ValTraceMgr* vtm) const
 		if ( ! args.empty() )
 			args += ", ";
 
-		args += vtm->ValName(m.first);
+		args += vtm->GenValName(m.first);
 		}
 
 	auto name = sv->GetType()->GetName();
@@ -686,7 +700,7 @@ std::string DeltaTableCreate::Generate(ValTraceMgr* vtm) const
 		if ( ! args.empty() )
 			args += ", ";
 
-		args += std::string("[") + vtm->ValName(m.first) + "] = " + vtm->ValName(m.second);
+		args += std::string("[") + vtm->GenValName(m.first) + "] = " + vtm->GenValName(m.second);
 		}
 
 	auto name = tv->GetType()->GetName();
@@ -698,12 +712,12 @@ std::string DeltaTableCreate::Generate(ValTraceMgr* vtm) const
 
 std::string DeltaVectorSet::Generate(ValTraceMgr* vtm) const
 	{
-	return std::string("[") + std::to_string(index) + "] = " + vtm->ValName(elem);
+	return std::string("[") + std::to_string(index) + "] = " + vtm->GenValName(elem);
 	}
 
 std::string DeltaVectorAppend::Generate(ValTraceMgr* vtm) const
 	{
-	return std::string("[") + std::to_string(index) + "] = " + vtm->ValName(elem);
+	return std::string("[") + std::to_string(index) + "] = " + vtm->GenValName(elem);
 	}
 
 std::string DeltaVectorCreate::Generate(ValTraceMgr* vtm) const
@@ -716,7 +730,7 @@ std::string DeltaVectorCreate::Generate(ValTraceMgr* vtm) const
 		if ( vec.size() > 0 )
 			vec += ", ";
 
-		vec += vtm->ValName(e->GetVal());
+		vec += vtm->GenValName(e->GetVal());
 		}
 
 	return std::string(" = vector(") + vec + ")";
@@ -739,23 +753,10 @@ void EventTrace::Generate(FILE* f, ValTraceMgr& vtm, const DeltaGenVec& dvec, st
 
 		if ( d.IsFirstDef() && vtm.IsGlobal(val) )
 			{
-			auto& val_name = vtm.ValName(val);
-
-			std::string type_name;
-			auto& t = val->GetType();
-			auto& tn = t->GetName();
-			if ( tn.empty() )
-				{
-				ODesc d;
-				t->Describe(&d);
-				type_name = d.Description();
-				}
-			else
-				type_name = tn;
-
+			auto& val_name = vtm.GetValName(val);
 			auto anno = offset < num_pre ? " # from script" : "";
 
-			fprintf(f, "global %s: %s;%s\n", val_name.c_str(), type_name.c_str(), anno);
+			fprintf(f, "global %s: %s;%s\n", val_name.c_str(), describe_type(val->GetType()).c_str(), anno);
 			}
 
 		++offset;
@@ -770,12 +771,13 @@ void EventTrace::Generate(FILE* f, ValTraceMgr& vtm, const DeltaGenVec& dvec, st
 		fprintf(f, "\t");
 
 		auto& val = d.GetVal();
+		auto& vname = vtm.GetValName(val);
 
 		if ( d.IsFirstDef() && ! vtm.IsGlobal(val) )
-			fprintf(f, "local ");
+			fprintf(f, "local %s: %s", vname.c_str(), describe_type(val->GetType()).c_str());
 
-		if ( d.NeedsLHS() )
-			fprintf(f, "%s", vtm.ValName(val).c_str());
+		else if ( d.NeedsLHS() )
+			fprintf(f, "%s", vname.c_str());
 
 		auto anno = offset < num_pre ? " # from script" : "";
 
@@ -839,7 +841,7 @@ void ValTraceMgr::TraceEventValues(std::shared_ptr<EventTrace> et, const zeek::A
 		if ( ! ev_args.empty() )
 			ev_args += ", ";
 
-		ev_args += ValName(a);
+		ev_args += GenValName(a);
 		}
 
 	curr_ev->SetArgs(ev_args);
@@ -866,7 +868,7 @@ void ValTraceMgr::FinishCurrentEvent(const zeek::Args* args)
 		processed_vals.insert(vals[i].get());
 	}
 
-const std::string& ValTraceMgr::ValName(const ValPtr& v)
+const std::string& ValTraceMgr::GenValName(const ValPtr& v)
 	{
 	auto find = val_names.find(v.get());
 	if ( find == val_names.end() )
@@ -897,7 +899,7 @@ const std::string& ValTraceMgr::ValName(const ValPtr& v)
 					if ( ! rep.empty() )
 						rep += ", ";
 
-					rep += ValName(v_i);
+					rep += GenValName(v_i);
 					}
 				}
 
@@ -927,6 +929,13 @@ const std::string& ValTraceMgr::ValName(const ValPtr& v)
 
 	ValUsed(v);
 
+	return find->second;
+	}
+
+const std::string& ValTraceMgr::GetValName(const ValPtr& v)
+	{
+	auto find = val_names.find(v.get());
+	ASSERT(find != val_names.end());
 	return find->second;
 	}
 

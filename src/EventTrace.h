@@ -376,9 +376,13 @@ public:
 	void FinishCurrentEvent(const zeek::Args* args);
 
 	// Returns the name of the script variable associated with the
-	// given value.
-	const std::string& ValName(const ValPtr& v);
-	const std::string& ValName(const ValTrace* vt) { return ValName(vt->GetVal()); }
+	// given value.  The first versions generate the name if not
+	// already present.  The second versions require it to already
+	// be present.
+	const std::string& GenValName(const ValPtr& v);
+	const std::string& GenValName(const ValTrace* vt) { return GenValName(vt->GetVal()); }
+	const std::string& GetValName(const ValPtr& v);
+	const std::string& GetValName(const ValTrace* vt) { return GetValName(vt->GetVal()); }
 
 	// Returns true if the script variable associated with the given value
 	// needs to be global (because it's used across multiple events).
