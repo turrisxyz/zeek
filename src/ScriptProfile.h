@@ -65,6 +65,12 @@ private:
 class ScriptProfile : public ScriptProfileStats
 	{
 public:
+	ScriptProfile() : ScriptProfileStats("non-scripts")
+		{
+		func = nullptr;
+		is_BiF = false;
+		}
+
 	ScriptProfile(const Func* _func, const detail::StmtPtr& body)
 		: ScriptProfileStats(_func->Name())
 		{
@@ -106,7 +112,7 @@ private:
 class ScriptProfileMgr
 	{
 public:
-	ScriptProfileMgr(FILE* _f) : f(_f) { }
+	ScriptProfileMgr(FILE* _f);
 	~ScriptProfileMgr();
 
 	void StartInvocation(const Func* f, const detail::StmtPtr& body = nullptr);
@@ -114,6 +120,7 @@ public:
 
 private:
 	FILE* f;
+	ScriptProfile non_scripts;
 	std::vector<ScriptProfile*> call_stack;
 	std::unordered_map<const Obj*, std::unique_ptr<ScriptProfile>> profiles;
 	std::unordered_map<const Obj*, const Func*> body_to_func;

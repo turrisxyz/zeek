@@ -52,9 +52,16 @@ void ScriptProfile::Report(FILE* f) const
 	        child_stats.Memory());
 	}
 
+ScriptProfileMgr::ScriptProfileMgr(FILE* _f) : f(_f), non_scripts()
+	{
+	non_scripts.StartActivation();
+	}
+
 ScriptProfileMgr::~ScriptProfileMgr()
 	{
 	ASSERT(call_stack.empty());
+
+	non_scripts.EndActivation();
 
 	ScriptProfileStats total_stats;
 	ScriptProfileStats BiF_stats;
@@ -107,10 +114,17 @@ ScriptProfileMgr::~ScriptProfileMgr()
 	fprintf(f, "total\t%d-locations\tTOTAL\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
 	        total_stats.NumInstances(), total_stats.NumCalls(), total_stats.CPUTime(), 0.0,
 	        total_stats.Memory(), 0LL);
+
+	fprintf(f, "non-scripts\t<no-location>\tTOTAL\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
+	        non_scripts.NumCalls(), non_scripts.CPUTime(), 0.0,
+	        non_scripts.Memory(), 0LL);
 	}
 
 void ScriptProfileMgr::StartInvocation(const Func* f, const detail::StmtPtr& body)
 	{
+	if ( call_stack.empty() )
+		non_scripts.EndActivation();
+
 	const Obj* o = body ? static_cast<Obj*>(body.get()) : f;
 	auto associated_prof = profiles.find(o);
 	ScriptProfile* ep;
@@ -140,7 +154,9 @@ void ScriptProfileMgr::EndInvocation()
 
 	ep->EndActivation();
 
-	if ( ! call_stack.empty() )
+	if ( call_stack.empty() )
+		non_scripts.StartActivation();
+	else
 		{
 		auto parent = call_stack.back();
 		parent->ChildFinished(ep);
