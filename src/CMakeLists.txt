@@ -329,6 +329,7 @@ set(MAIN_SRCS
     ScannedFile.cc
     Scope.cc
     ScriptCoverageManager.cc
+    ScriptProfile.cc
     SerializationFormat.cc
     SmithWaterman.cc
     Stats.cc

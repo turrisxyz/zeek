@@ -29,6 +29,7 @@
 #include "zeek/Reporter.h"
 #include "zeek/RunState.h"
 #include "zeek/Scope.h"
+#include "zeek/ScriptProfile.h"
 #include "zeek/Stmt.h"
 #include "zeek/Traverse.h"
 #include "zeek/Var.h"
@@ -119,247 +120,6 @@ std::string render_call_stack()
 
 	return rval;
 	}
-
-class ExecProfileStats {
-public:
-	ExecProfileStats() {}
-	ExecProfileStats(std::string arg_name) : name(std::move(arg_name)) {}
-
-	virtual ~ExecProfileStats() { }
-
-	const auto Name() const { return name; }
-
-	int NumInstances() const { return ninstances; }
-	int NumCalls() const { return ncalls; }
-	double CPUTime() const { return CPU_time; }
-	uint64_t Memory() const { return memory; }
-
-	void AddInstance() { ++ninstances; }
-
-	void AddIn(const ExecProfileStats* eps, bool bump_num_calls = true)
-		{
-		if ( bump_num_calls )
-			ncalls += eps->NumCalls();
-
-		CPU_time += eps->CPUTime();
-		memory += eps->Memory();
-		}
-
-	void AddIn(double delta_CPU_time, uint64_t delta_memory)
-		{
-		CPU_time += delta_CPU_time;
-		memory += delta_memory;
-		}
-
-	void SetStats(double arg_CPU_time, uint64_t arg_memory)
-		{
-		CPU_time = arg_CPU_time;
-		memory = arg_memory;
-		}
-
-	void NewCall() { ++ncalls; }
-
-private:
-	std::string name;
-
-	int ninstances = 0;
-	int ncalls = 0;
-	double CPU_time = 0.0;
-	uint64_t memory = 0;
-};
-
-class ExecProfile : public ExecProfileStats {
-public:
-	ExecProfile(const Func* _func, const detail::StmtPtr& body)
-		: ExecProfileStats(_func->Name())
-		{
-		func = _func;
-		is_BiF = body == nullptr;
-
-		if ( is_BiF )
-			loc = *func->GetLocationInfo();
-		else
-			loc = *body->GetLocationInfo();
-		}
-
-	void StartActivation();
-	void EndActivation();
-
-	void ChildFinished(const ExecProfile* child);
-
-	bool IsBiF() const { return is_BiF; }
-
-	double DeltaCPUTime() const { return delta_stats.CPUTime(); }
-	uint64_t DeltaMemory() const { return delta_stats.Memory(); }
-
-	void Report(FILE* f) const;
-
-private:
-	const Func* func;
-	bool is_BiF;
-	detail::Location loc;
-
-	ExecProfileStats child_stats;
-
-	// These are ephemeral, relevant between Start and End activations.
-	ExecProfileStats start_stats;
-
-	// Defined for the last activation period.
-	ExecProfileStats delta_stats;
-};
-
-void ExecProfile::StartActivation()
-	{
-	NewCall();
-
-	uint64_t start_memory;
-	util::get_memory_usage(&start_memory, nullptr);
-	start_stats.SetStats(util::curr_CPU_time(), start_memory);
-	}
-
-void ExecProfile::EndActivation()
-	{
-	uint64_t end_memory;
-	util::get_memory_usage(&end_memory, nullptr);
-
-	delta_stats.SetStats(util::curr_CPU_time() - start_stats.CPUTime(), end_memory - start_stats.Memory());
-
-	AddIn(&delta_stats, false);
-	}
-
-void ExecProfile::ChildFinished(const ExecProfile* child)
-	{
-	child_stats.AddIn(child->DeltaCPUTime(), child->DeltaMemory());
-	}
-
-void ExecProfile::Report(FILE* f) const
-	{
-	std::string l;
-
-	if ( loc.first_line == 0 )
-		// Rather than just formatting the no-location loc, we'd like
-		// a version that doesn't have a funky "line 0" in it, nor
-		// an embedded blank.
-		l = "<no-location>";
-	else
-		l = std::string(loc.filename) + ":" + std::to_string(loc.first_line);
-
-	std::string ftype = is_BiF ? "BiF" : func->GetType()->FlavorString();
-
-	fprintf(f, "%s\t%s\t%s\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-		Name().c_str(), l.c_str(), ftype.c_str(), NumCalls(),
-		CPUTime(), child_stats.CPUTime(),
-		Memory(), child_stats.Memory());
-	}
-
-class ExecProfileMgr {
-public:
-	ExecProfileMgr(FILE* _f) : f(_f) { }
-	~ExecProfileMgr();
-
-	void StartInvocation(const Func* f, const detail::StmtPtr& body = nullptr);
-	void EndInvocation();
-
-private:
-	FILE* f;
-	std::vector<ExecProfile*> call_stack;
-	std::unordered_map<const Obj*, std::unique_ptr<ExecProfile>> profiles;
-	std::unordered_map<const Obj*, const Func*> body_to_func;
-	std::vector<const Obj*> objs; // just for more natural printing order
-};
-
-ExecProfileMgr::~ExecProfileMgr()
-	{
-	ASSERT(call_stack.empty());
-
-	ExecProfileStats total_stats;
-	ExecProfileStats BiF_stats;
-	std::unordered_map<const Func*, ExecProfileStats> func_stats;
-
-	fprintf(f, "#fields\tfunction\tlocation\ttype\tncall\ttot_CPU\tchild_CPU\ttot_Mem\tchild_Mem\n");
-	fprintf(f, "#types\tstring\tstring\tstring\tcount\tinterval\tinterval\tcount\tcount\n");
-
-	for ( auto o : objs )
-		{
-		auto p = profiles[o].get();
-		profiles[o]->Report(f);
-
-		total_stats.AddInstance();
-		total_stats.AddIn(p);
-
-		if ( p->IsBiF() )
-			{
-			BiF_stats.AddInstance();
-			BiF_stats.AddIn(p);
-			}
-		else
-			{
-			ASSERT(body_to_func.count(o) > 0);
-			auto func = body_to_func[o];
-
-			if ( func_stats.count(func) == 0 )
-				func_stats[func] = ExecProfileStats(func->Name());
-
-			func_stats[func].AddIn(p);
-			}
-		}
-
-	for ( auto& fs : func_stats )
-		{
-		auto func = fs.first;
-		auto& fp = fs.second;
-		auto n = func->GetBodies().size();
-		if ( n > 1 )
-			fprintf(f, "%s\t%lu-locations\t%s\t%d\t%.06f\t%0.6f\t%lld\t%lld\n",
-				fp.Name().c_str(), n, func->GetType()->FlavorString().c_str(), fp.NumCalls(), fp.CPUTime(), 0.0, fp.Memory(), 0LL);
-		}
-
-	fprintf(f, "all-BiFs\t%d-locations\tBiF\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-		BiF_stats.NumInstances(), BiF_stats.NumCalls(), BiF_stats.CPUTime(), 0.0, BiF_stats.Memory(), 0LL);
-
-	fprintf(f, "total\t%d-locations\tTOTAL\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-		total_stats.NumInstances(), total_stats.NumCalls(), total_stats.CPUTime(), 0.0, total_stats.Memory(), 0LL);
-	}
-
-void ExecProfileMgr::StartInvocation(const Func* f, const detail::StmtPtr& body)
-	{
-	const Obj* o = body ? static_cast<Obj*>(body.get()) : f;
-	auto associated_prof = profiles.find(o);
-	ExecProfile* ep;
-
-	if ( associated_prof == profiles.end() )
-		{
-		auto new_ep = std::make_unique<ExecProfile>(f, body);
-		ep = new_ep.get();
-		profiles[o] = std::move(new_ep);
-		objs.push_back(o);
-
-		if ( body )
-			body_to_func[o] = f;
-		}
-	else
-		ep = associated_prof->second.get();
-
-	ep->StartActivation();
-	call_stack.push_back(ep);
-	}
-
-void ExecProfileMgr::EndInvocation()
-	{
-	ASSERT(! call_stack.empty());
-	auto ep = call_stack.back();
-	call_stack.pop_back();
-
-	ep->EndActivation();
-
-	if ( ! call_stack.empty() )
-		{
-		auto parent = call_stack.back();
-		parent->ChildFinished(ep);
-		}
-	}
-
-auto epm = std::make_unique<ExecProfileMgr>(stdout);
 
 Func::Func()
 	{
@@ -657,8 +417,8 @@ ValPtr ScriptFunc::Invoke(zeek::Args* args, Frame* parent) const
 				f->SetElement(j, arg);
 			}
 
-		if ( epm )
-			epm->StartInvocation(this, body.stmts);
+		if ( spm )
+			spm->StartInvocation(this, body.stmts);
 
 		f->Reset(args->size());
 
@@ -682,8 +442,8 @@ ValPtr ScriptFunc::Invoke(zeek::Args* args, Frame* parent) const
 			continue;
 			}
 
-		if ( epm )
-			epm->EndInvocation();
+		if ( spm )
+			spm->EndInvocation();
 
 		if ( f->HasDelayed() )
 			{
@@ -1004,8 +764,8 @@ bool BuiltinFunc::IsPure() const
 
 ValPtr BuiltinFunc::Invoke(Args* args, Frame* parent) const
 	{
-	if ( epm )
-		epm->StartInvocation(this);
+	if ( spm )
+		spm->StartInvocation(this);
 
 	SegmentProfiler prof(segment_logger, Name());
 
@@ -1019,8 +779,8 @@ ValPtr BuiltinFunc::Invoke(Args* args, Frame* parent) const
 
 	if ( handled )
 		{
-		if ( epm )
-			epm->EndInvocation();
+		if ( spm )
+			spm->EndInvocation();
 		return hook_result;
 		}
 
@@ -1045,8 +805,8 @@ ValPtr BuiltinFunc::Invoke(Args* args, Frame* parent) const
 		g_trace_state.LogTrace("\tFunction return: %s\n", d.Description());
 		}
 
-	if ( epm )
-		epm->EndInvocation();
+	if ( spm )
+		spm->EndInvocation();
 
 	return result;
 	}
