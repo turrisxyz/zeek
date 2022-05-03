@@ -22,7 +22,8 @@ void ScriptProfile::EndActivation()
 	uint64_t end_memory;
 	util::get_memory_usage(&end_memory, nullptr);
 
-	delta_stats.SetStats(util::curr_CPU_time() - start_stats.CPUTime(), end_memory - start_stats.Memory());
+	delta_stats.SetStats(util::curr_CPU_time() - start_stats.CPUTime(),
+	                     end_memory - start_stats.Memory());
 
 	AddIn(&delta_stats, false);
 	}
@@ -46,10 +47,9 @@ void ScriptProfile::Report(FILE* f) const
 
 	std::string ftype = is_BiF ? "BiF" : func->GetType()->FlavorString();
 
-	fprintf(f, "%s\t%s\t%s\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-		Name().c_str(), l.c_str(), ftype.c_str(), NumCalls(),
-		CPUTime(), child_stats.CPUTime(),
-		Memory(), child_stats.Memory());
+	fprintf(f, "%s\t%s\t%s\t%d\t%.06f\t%.06f\t%lld\t%lld\n", Name().c_str(), l.c_str(),
+	        ftype.c_str(), NumCalls(), CPUTime(), child_stats.CPUTime(), Memory(),
+	        child_stats.Memory());
 	}
 
 ScriptProfileMgr::~ScriptProfileMgr()
@@ -60,7 +60,8 @@ ScriptProfileMgr::~ScriptProfileMgr()
 	ScriptProfileStats BiF_stats;
 	std::unordered_map<const Func*, ScriptProfileStats> func_stats;
 
-	fprintf(f, "#fields\tfunction\tlocation\ttype\tncall\ttot_CPU\tchild_CPU\ttot_Mem\tchild_Mem\n");
+	fprintf(f,
+	        "#fields\tfunction\tlocation\ttype\tncall\ttot_CPU\tchild_CPU\ttot_Mem\tchild_Mem\n");
 	fprintf(f, "#types\tstring\tstring\tstring\tcount\tinterval\tinterval\tcount\tcount\n");
 
 	for ( auto o : objs )
@@ -94,15 +95,18 @@ ScriptProfileMgr::~ScriptProfileMgr()
 		auto& fp = fs.second;
 		auto n = func->GetBodies().size();
 		if ( n > 1 )
-			fprintf(f, "%s\t%lu-locations\t%s\t%d\t%.06f\t%0.6f\t%lld\t%lld\n",
-				fp.Name().c_str(), n, func->GetType()->FlavorString().c_str(), fp.NumCalls(), fp.CPUTime(), 0.0, fp.Memory(), 0LL);
+			fprintf(f, "%s\t%lu-locations\t%s\t%d\t%.06f\t%0.6f\t%lld\t%lld\n", fp.Name().c_str(),
+			        n, func->GetType()->FlavorString().c_str(), fp.NumCalls(), fp.CPUTime(), 0.0,
+			        fp.Memory(), 0LL);
 		}
 
 	fprintf(f, "all-BiFs\t%d-locations\tBiF\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-		BiF_stats.NumInstances(), BiF_stats.NumCalls(), BiF_stats.CPUTime(), 0.0, BiF_stats.Memory(), 0LL);
+	        BiF_stats.NumInstances(), BiF_stats.NumCalls(), BiF_stats.CPUTime(), 0.0,
+	        BiF_stats.Memory(), 0LL);
 
 	fprintf(f, "total\t%d-locations\tTOTAL\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-		total_stats.NumInstances(), total_stats.NumCalls(), total_stats.CPUTime(), 0.0, total_stats.Memory(), 0LL);
+	        total_stats.NumInstances(), total_stats.NumCalls(), total_stats.CPUTime(), 0.0,
+	        total_stats.Memory(), 0LL);
 	}
 
 void ScriptProfileMgr::StartInvocation(const Func* f, const detail::StmtPtr& body)

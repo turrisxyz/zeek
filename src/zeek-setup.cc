@@ -866,7 +866,8 @@ SetupResult setup(int argc, char** argv, Options* zopts)
 		if ( profiling_interval > 0 )
 			{
 			const auto& profiling_file = id::find_val("profiling_file");
-			profiling_logger = std::make_shared<ProfileLogger>(profiling_file->AsFile(), profiling_interval);
+			profiling_logger = std::make_shared<ProfileLogger>(profiling_file->AsFile(),
+			                                                   profiling_interval);
 
 			if ( segment_profiling )
 				segment_logger = profiling_logger;

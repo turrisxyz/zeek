@@ -13,10 +13,11 @@ namespace zeek
 namespace detail
 	{
 
-class ScriptProfileStats {
+class ScriptProfileStats
+	{
 public:
-	ScriptProfileStats() {}
-	ScriptProfileStats(std::string arg_name) : name(std::move(arg_name)) {}
+	ScriptProfileStats() { }
+	ScriptProfileStats(std::string arg_name) : name(std::move(arg_name)) { }
 
 	virtual ~ScriptProfileStats() { }
 
@@ -59,9 +60,10 @@ private:
 	int ncalls = 0;
 	double CPU_time = 0.0;
 	uint64_t memory = 0;
-};
+	};
 
-class ScriptProfile : public ScriptProfileStats {
+class ScriptProfile : public ScriptProfileStats
+	{
 public:
 	ScriptProfile(const Func* _func, const detail::StmtPtr& body)
 		: ScriptProfileStats(_func->Name())
@@ -99,9 +101,10 @@ private:
 
 	// Defined for the last activation period.
 	ScriptProfileStats delta_stats;
-};
+	};
 
-class ScriptProfileMgr {
+class ScriptProfileMgr
+	{
 public:
 	ScriptProfileMgr(FILE* _f) : f(_f) { }
 	~ScriptProfileMgr();
@@ -115,7 +118,7 @@ private:
 	std::unordered_map<const Obj*, std::unique_ptr<ScriptProfile>> profiles;
 	std::unordered_map<const Obj*, const Func*> body_to_func;
 	std::vector<const Obj*> objs; // just for more natural printing order
-};
+	};
 
 // If non-nil, script profiling is active.
 extern std::unique_ptr<ScriptProfileMgr> spm;

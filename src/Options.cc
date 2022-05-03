@@ -143,7 +143,9 @@ void usage(const char* prog, int code)
 	fprintf(stderr, "    -m|--mem-leaks                  | show leaks  [perftools]\n");
 	fprintf(stderr, "    -M|--mem-profile                | record heap [perftools]\n");
 #endif
-	fprintf(stderr, "    --profile-scripts[=file]        | profile scripts to given file (default stdout)\n");
+	fprintf(
+		stderr,
+		"    --profile-scripts[=file]        | profile scripts to given file (default stdout)\n");
 	fprintf(stderr, "    --pseudo-realtime[=<speedup>]   | enable pseudo-realtime for performance "
 	                "evaluation (default 1)\n");
 	fprintf(stderr, "    -j|--jobs                       | enable supervisor mode\n");

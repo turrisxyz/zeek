@@ -4,11 +4,11 @@
 
 #include "zeek/zeek-config.h"
 
-#include <memory>
 #include <stdint.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <memory>
 
 namespace zeek
 	{
