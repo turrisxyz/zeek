@@ -116,8 +116,7 @@ ScriptProfileMgr::~ScriptProfileMgr()
 	        total_stats.Memory(), 0LL);
 
 	fprintf(f, "non-scripts\t<no-location>\tTOTAL\t%d\t%.06f\t%.06f\t%lld\t%lld\n",
-	        non_scripts.NumCalls(), non_scripts.CPUTime(), 0.0,
-	        non_scripts.Memory(), 0LL);
+	        non_scripts.NumCalls(), non_scripts.CPUTime(), 0.0, non_scripts.Memory(), 0LL);
 	}
 
 void ScriptProfileMgr::StartInvocation(const Func* f, const detail::StmtPtr& body)
