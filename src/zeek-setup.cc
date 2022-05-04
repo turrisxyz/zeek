@@ -474,6 +474,9 @@ SetupResult setup(int argc, char** argv, Options* zopts)
 	plugin_mgr = new plugin::Manager();
 	fragment_mgr = new detail::FragmentManager();
 
+	if ( options.no_usage_warnings && options.analysis_options.usage_issues > 0 )
+		reporter->FatalError("-u incompatible with --no-usage-warnings");
+
 #ifdef DEBUG
 	if ( options.debug_log_streams )
 		{
@@ -791,14 +794,14 @@ SetupResult setup(int argc, char** argv, Options* zopts)
 		if ( options.parse_only )
 			{
 			if ( analysis_options.usage_issues > 0 )
-				analyze_scripts();
+				analyze_scripts(options.no_usage_warnings);
 
 			exit(reporter->Errors() != 0);
 			}
 
 		auto init_stmts = stmts ? analyze_global_stmts(stmts) : nullptr;
 
-		analyze_scripts();
+		analyze_scripts(options.no_usage_warnings);
 
 		if ( analysis_options.report_recursive )
 			// This option is report-and-exit.

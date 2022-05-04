@@ -17,8 +17,8 @@
 #include "zeek/Traverse.h"
 #include "zeek/Val.h"
 #include "zeek/module_util.h"
-#include "zeek/script_opt/FindUnused.h"
 #include "zeek/script_opt/StmtOptInfo.h"
+#include "zeek/script_opt/UsageAnalyzer.h"
 
 namespace zeek::detail
 	{

@@ -1,8 +1,8 @@
 // See the file "COPYING" in the main distribution directory for copyright.
 
-#include "zeek/Desc.h"
-#include "zeek/script_opt/FindUnused.h"
+#include "zeek/module_util.h"
 #include "zeek/script_opt/IDOptInfo.h"
+#include "zeek/script_opt/UsageAnalyzer.h"
 
 namespace zeek::detail
 	{
@@ -29,16 +29,28 @@ UsageAnalyzer::UsageAnalyzer(std::vector<FuncInfo>& funcs)
 		auto id = gpair.second.get();
 		auto& t = id->GetType();
 
-		if ( t->Tag() == TYPE_FUNC && t->AsFuncType()->Flavor() != FUNC_FLAVOR_FUNCTION && reachables.count(id) == 0 )
-			{
-			auto loc = id->GetLocationInfo();
-			ODesc d;
-			loc->Describe(&d);
-			printf("orphan %s (%s): %s\n", id->Name(), id->ModuleName().c_str(), d.Description());
+		if ( t->Tag() != TYPE_FUNC )
+			continue;
 
-			reachables.insert(id);
-			Expand(id);
-			}
+		if ( t->AsFuncType()->Flavor() == FUNC_FLAVOR_FUNCTION )
+			continue;
+
+		if ( reachables.count(id) > 0 )
+			continue;
+
+		auto flavor = t->AsFuncType()->FlavorString();
+		auto loc = id->GetLocationInfo();
+
+		auto module = id->ModuleName();
+		if ( module == GLOBAL_MODULE_NAME )
+			module = "";
+		else
+			module += "::";
+
+		reporter->Warning("%s %s%s (%s:%d): cannot be invoked", flavor.c_str(), module.c_str(), id->Name(), loc->filename, loc->first_line);
+
+		reachables.insert(id);
+		Expand(id);
 		}
 
 	for ( auto& gpair : globals )
@@ -49,14 +61,18 @@ UsageAnalyzer::UsageAnalyzer(std::vector<FuncInfo>& funcs)
 			continue;
 
 		auto f = GetFuncIfAny(id);
+		if ( ! f )
+			continue;
 
-		if ( f )
-			{
-			auto loc = id->GetLocationInfo();
-			ODesc d;
-			loc->Describe(&d);
-			printf("orphan function %s (%s): %s\n", id->Name(), id->ModuleName().c_str(), d.Description());
-			}
+		auto loc = id->GetLocationInfo();
+
+		auto module = id->ModuleName();
+		if ( module == GLOBAL_MODULE_NAME )
+			module = "";
+		else
+			module += "::";
+
+		reporter->Warning("function %s%s (%s:%d): cannot be called", module.c_str(), id->Name(), loc->filename, loc->first_line);
 		}
 	}
 
@@ -133,7 +149,6 @@ bool UsageAnalyzer::ExpandReachables(const IDSet& curr_r)
 
 void UsageAnalyzer::Expand(const ID* id)
 	{
-	// printf("expanding %s\n", id->Name());
 	analyzed_IDs.clear();
 	id->Traverse(this);
 	}

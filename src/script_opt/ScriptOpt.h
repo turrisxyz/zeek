@@ -182,8 +182,9 @@ extern void add_file_analysis_pattern(AnalyOpt& opts, const char* pat);
 // it should be skipped.
 extern bool should_analyze(const ScriptFuncPtr& f, const StmtPtr& body);
 
-// Analyze all of the parsed scripts collectively for optimization.
-extern void analyze_scripts();
+// Analyze all of the parsed scripts collectively for usage issues (unless
+// suppressed by the flag) and optimization.
+extern void analyze_scripts(bool no_usage_warnings);
 
 // Used for C++-compiled scripts to signal their presence, by setting this
 // to a non-empty value.

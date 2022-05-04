@@ -106,6 +106,7 @@ void usage(const char* prog, int code)
 	fprintf(stderr, "    -s|--rulefile <rulefile>        | read rules from given file\n");
 	fprintf(stderr, "    -t|--tracefile <tracefile>      | activate execution tracing\n");
 	fprintf(stderr, "    -u|--usage-issues               | find variable usage issues and exit\n");
+	fprintf(stderr, "       --no-usage-warnings          | suppress warnings of unused functions/hooks/events\n");
 	fprintf(stderr, "    -v|--version                    | print version and exit\n");
 	fprintf(stderr, "    -w|--writefile <writefile>      | write to given tcpdump file\n");
 #ifdef DEBUG
@@ -359,7 +360,9 @@ Options parse_cmdline(int argc, char** argv)
 			}
 		}
 
-	constexpr struct option long_opts[] = {
+	int no_usage_warnings = 0;
+
+	struct option long_opts[] = {
 		{"parse-only", no_argument, nullptr, 'a'},
 		{"bare-mode", no_argument, nullptr, 'b'},
 		{"capture-unprocessed", required_argument, nullptr, 'c'},
@@ -399,6 +402,7 @@ Options parse_cmdline(int argc, char** argv)
 		{"mem-profile", no_argument, nullptr, 'M'},
 #endif
 
+		{"no-usage-warnings", no_argument, &no_usage_warnings, 1},
 		{"pseudo-realtime", optional_argument, nullptr, 'E'},
 		{"jobs", optional_argument, nullptr, 'j'},
 		{"test", no_argument, nullptr, '#'},
@@ -593,6 +597,8 @@ Options parse_cmdline(int argc, char** argv)
 			case 0:
 				// This happens for long options that don't have
 				// a short-option equivalent.
+				if ( no_usage_warnings )
+					rval.no_usage_warnings = true;
 				break;
 
 			case '?':

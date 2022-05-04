@@ -10,11 +10,11 @@
 #include "zeek/module_util.h"
 #include "zeek/script_opt/CPP/Compile.h"
 #include "zeek/script_opt/CPP/Func.h"
-#include "zeek/script_opt/FindUnused.h"
 #include "zeek/script_opt/GenIDDefs.h"
 #include "zeek/script_opt/Inline.h"
 #include "zeek/script_opt/ProfileFunc.h"
 #include "zeek/script_opt/Reduce.h"
+#include "zeek/script_opt/UsageAnalyzer.h"
 #include "zeek/script_opt/UseDefs.h"
 #include "zeek/script_opt/ZAM/Compile.h"
 
@@ -514,7 +514,7 @@ static void analyze_scripts_for_ZAM(std::unique_ptr<ProfileFuncs>& pfs)
 		reporter->FatalError("no matching functions/files for -O ZAM");
 	}
 
-void analyze_scripts()
+void analyze_scripts(bool no_usage_warnings)
 	{
 	static bool did_init = false;
 
@@ -524,7 +524,9 @@ void analyze_scripts()
 		did_init = true;
 		}
 
-	UsageAnalyzer ua(funcs);
+	std::unique_ptr<UsageAnalyzer> ua;
+	if ( ! no_usage_warnings )
+		ua = std::make_unique<UsageAnalyzer>(funcs);
 
 	auto& ofuncs = analysis_options.only_funcs;
 	auto& ofiles = analysis_options.only_files;
