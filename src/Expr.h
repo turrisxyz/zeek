@@ -1398,13 +1398,14 @@ protected:
 class CallExpr final : public Expr
 	{
 public:
-	CallExpr(ExprPtr func, ListExprPtr args, bool in_hook = false);
+	CallExpr(ExprPtr func, ListExprPtr args, bool in_hook = false, bool in_when = false);
 
 	Expr* Func() const { return func.get(); }
 	ListExpr* Args() const { return args.get(); }
 	ListExprPtr ArgsPtr() const { return args; }
 
 	bool IsPure() const override;
+	bool IsInWhen() const { return in_when; }
 
 	ValPtr Eval(Frame* f) const override;
 
@@ -1424,6 +1425,7 @@ protected:
 
 	ExprPtr func;
 	ListExprPtr args;
+	bool in_when;
 	};
 
 /**

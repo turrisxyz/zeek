@@ -1864,6 +1864,14 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 	begin_func(id, current_module.c_str(), FUNC_FLAVOR_FUNCTION, false, ft);
 	}
 
+WhenInfo::WhenInfo(bool _is_return)
+	: is_return(_is_return)
+	{
+	// This won't be needed once we remove the deprecated semantics.
+	cl = new zeek::FuncType::CaptureList;
+	BuildInvokeElems();
+	}
+
 void WhenInfo::Build(StmtPtr ws)
 	{
 	if ( ! cl )
@@ -1925,14 +1933,9 @@ void WhenInfo::Build(StmtPtr ws)
 	// Build the AST elements of the lambda.
 
 	// First, the constants we'll need.
-	auto true_const = make_intrusive<ConstExpr>(val_mgr->True());
-	auto one_const = make_intrusive<ConstExpr>(val_mgr->Count(1));
-	auto two_const = make_intrusive<ConstExpr>(val_mgr->Count(2));
-	auto three_const = make_intrusive<ConstExpr>(val_mgr->Count(3));
+	BuildInvokeElems();
 
-	invoke_cond = make_intrusive<ListExpr>(one_const);
-	invoke_s = make_intrusive<ListExpr>(two_const);
-	invoke_timeout = make_intrusive<ListExpr>(three_const);
+	auto true_const = make_intrusive<ConstExpr>(val_mgr->True());
 
 	// Access to the parameter that selects which action we're doing.
 	auto param_id = lookup_ID(lambda_param_id.c_str(), current_module.c_str());
@@ -1964,7 +1967,13 @@ void WhenInfo::Build(StmtPtr ws)
 void WhenInfo::Instantiate(Frame* f)
 	{
 	if ( cl )
-		curr_lambda = make_intrusive<ConstExpr>(lambda->Eval(f));
+		Instantiate(lambda->Eval(f));
+	}
+
+void WhenInfo::Instantiate(ValPtr func)
+	{
+	if ( cl )
+		curr_lambda = make_intrusive<ConstExpr>(std::move(func));
 	}
 
 ExprPtr WhenInfo::Cond()
@@ -1984,6 +1993,18 @@ StmtPtr WhenInfo::WhenBody()
 	return make_intrusive<ReturnStmt>(invoke, true);
 	}
 
+double WhenInfo::TimeoutVal(Frame* f)
+	{
+	if ( timeout )
+		{
+		auto t = timeout->Eval(f);
+		if ( t )
+			return t->AsDouble();
+		}
+
+	return -1.0; // signals "no timeout"
+	}
+
 StmtPtr WhenInfo::TimeoutStmt()
 	{
 	if ( ! curr_lambda )
@@ -1991,6 +2012,17 @@ StmtPtr WhenInfo::TimeoutStmt()
 
 	auto invoke = make_intrusive<CallExpr>(curr_lambda, invoke_timeout);
 	return make_intrusive<ReturnStmt>(invoke, true);
+	}
+
+void WhenInfo::BuildInvokeElems()
+	{
+	one_const = make_intrusive<ConstExpr>(val_mgr->Count(1));
+	two_const = make_intrusive<ConstExpr>(val_mgr->Count(2));
+	three_const = make_intrusive<ConstExpr>(val_mgr->Count(3));
+
+	invoke_cond = make_intrusive<ListExpr>(one_const);
+	invoke_s = make_intrusive<ListExpr>(two_const);
+	invoke_timeout = make_intrusive<ListExpr>(three_const);
 	}
 
 WhenStmt::WhenStmt(WhenInfo* _wi) : Stmt(STMT_WHEN), wi(_wi)
@@ -2027,6 +2059,8 @@ ValPtr WhenStmt::Exec(Frame* f, StmtFlowType& flow)
 
 	wi->Instantiate(f);
 
+	auto timeout = wi->TimeoutVal(f);
+
 	if ( wi->Captures() )
 		{
 		std::vector<ValPtr> local_aggrs;
@@ -2038,12 +2072,12 @@ ValPtr WhenStmt::Exec(Frame* f, StmtFlowType& flow)
 				local_aggrs.emplace_back(std::move(v));
 			}
 
-		new trigger::Trigger(wi, wi->WhenExprGlobals(), local_aggrs, f, location);
+		new trigger::Trigger(wi, timeout, wi->WhenExprGlobals(), local_aggrs, f, location);
 		}
 
 	else
 		// The new trigger object will take care of its own deletion.
-		new trigger::Trigger(wi->Cond(), wi->WhenBody(), wi->TimeoutStmt(), wi->TimeoutExpr(), f,
+		new trigger::Trigger(wi->Cond(), wi->WhenBody(), wi->TimeoutStmt(), timeout, f,
 		                     wi->IsReturn(), location);
 
 	return nullptr;
