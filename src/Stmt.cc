@@ -1809,13 +1809,6 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 
 	ProfileFunc cond_pf(cond.get());
 
-	if ( ! cl )
-		{
-		for ( auto& wl : cond_pf.WhenLocals() )
-			prior_vars.erase(wl->Name());
-		return;
-		}
-
 	when_expr_locals = cond_pf.Locals();
 	when_expr_globals = cond_pf.Globals();
 
@@ -1825,17 +1818,20 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 		{
 		bool is_present = false;
 
-		for ( auto& c : *cl )
-			if ( c.id == wl )
-				{
-				is_present = true;
-				break;
-				}
-
-		if ( ! is_present )
+		if ( cl )
 			{
-			IDPtr wl_ptr = {NewRef{}, const_cast<ID*>(wl)};
-			cl->emplace_back(FuncType::Capture{wl_ptr, false});
+			for ( auto& c : *cl )
+				if ( c.id == wl )
+					{
+					is_present = true;
+					break;
+					}
+
+			if ( ! is_present )
+				{
+				IDPtr wl_ptr = {NewRef{}, const_cast<ID*>(wl)};
+				cl->emplace_back(FuncType::Capture{wl_ptr, false});
+				}
 			}
 
 		// In addition, don't treat them as external locals that
@@ -1853,7 +1849,8 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 	auto params = make_intrusive<RecordType>(param_list);
 
 	auto ft = make_intrusive<FuncType>(params, base_type(TYPE_ANY), FUNC_FLAVOR_FUNCTION);
-	ft->SetCaptures(*cl);
+	if ( cl )
+		ft->SetCaptures(*cl);
 
 	if ( ! is_return )
 		ft->SetExpressionlessReturnOkay(true);
@@ -1864,6 +1861,12 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 
 	auto arg_id = install_ID(lambda_param_id.c_str(), current_module.c_str(), false, false);
 	arg_id->SetType(count_t);
+
+	if ( ! cl )
+		{
+		for ( auto& wl : cond_pf.WhenLocals() )
+			prior_vars.erase(wl->Name());
+		}
 	}
 
 WhenInfo::WhenInfo(bool _is_return)
@@ -1879,6 +1882,8 @@ void WhenInfo::Build(StmtPtr ws)
 	if ( ! cl )
 		{
 		// Old-style semantics.
+		pop_scope();
+
 		auto locals = when_expr_locals;
 
 		ProfileFunc cond_pf(cond.get());
