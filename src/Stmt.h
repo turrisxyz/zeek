@@ -599,6 +599,12 @@ public:
 	const IDSet& WhenExprGlobals() const { return when_expr_globals; }
 
 private:
+	// True if the "when" statement corresponds to old-style deprecated
+	// semantics (no captures, but needing captures).  Also generates
+	// the corresponding deprecation warnings, which are associated
+	// with "ws".
+	bool IsDeprecatedSemantics(StmtPtr ws);
+
 	// Build those elements we'll need for invoking our lambda.
 	void BuildInvokeElems();
 

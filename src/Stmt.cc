@@ -1861,12 +1861,6 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 
 	auto arg_id = install_ID(lambda_param_id.c_str(), current_module.c_str(), false, false);
 	arg_id->SetType(count_t);
-
-	if ( ! cl )
-		{
-		for ( auto& wl : cond_pf.WhenLocals() )
-			prior_vars.erase(wl->Name());
-		}
 	}
 
 WhenInfo::WhenInfo(bool _is_return)
@@ -1879,49 +1873,16 @@ WhenInfo::WhenInfo(bool _is_return)
 
 void WhenInfo::Build(StmtPtr ws)
 	{
-	if ( ! cl )
+	if ( IsDeprecatedSemantics(ws) )
 		{
-		// Old-style semantics.
 		pop_scope();
-
-		auto locals = when_expr_locals;
-
-		ProfileFunc cond_pf(cond.get());
-		for ( auto& bl : cond_pf.Locals() )
-			if ( prior_vars.count(bl->Name()) > 0 )
-				locals.insert(bl);
-
-		ProfileFunc body_pf(s.get());
-		for ( auto& bl : body_pf.Locals() )
-			if ( prior_vars.count(bl->Name()) > 0 )
-				locals.insert(bl);
-
-		if ( timeout_s )
-			{
-			ProfileFunc to_pf(timeout_s.get());
-			for ( auto& tl : to_pf.Locals() )
-				if ( prior_vars.count(tl->Name()) > 0 )
-					locals.insert(tl);
-			}
-
-		if ( ! locals.empty() )
-			{
-			std::string vars;
-			for ( auto& l : locals )
-				{
-				if ( ! vars.empty() )
-					vars += ", ";
-				vars += l->Name();
-				}
-
-			std::string msg = util::fmt("\"when\" statement referring to locals without an "
-			                            "explicit [] capture is deprecated: %s",
-			                            vars.c_str());
-			ws->Warn(msg.c_str());
-			}
-
-		return;
+ 		return;
 		}
+
+	if ( ! cl )
+		// Indicate that this instance is compatible with new-style
+		// semantics.
+		cl = new zeek::FuncType::CaptureList;
 
 	// Our general strategy is to construct a single lambda (so that
 	// the values of captures are shared across all of its elements)
@@ -2019,6 +1980,54 @@ StmtPtr WhenInfo::TimeoutStmt()
 
 	auto invoke = make_intrusive<CallExpr>(curr_lambda, invoke_timeout);
 	return make_intrusive<ReturnStmt>(invoke, true);
+	}
+ 
+bool WhenInfo::IsDeprecatedSemantics(StmtPtr ws)
+	{
+	if ( cl )
+		return false;
+
+	ProfileFunc cond_pf(cond.get());
+
+	for ( auto& wl : cond_pf.WhenLocals() )
+		prior_vars.erase(wl->Name());
+
+	auto locals = when_expr_locals;
+
+	for ( auto& bl : cond_pf.Locals() )
+		if ( prior_vars.count(bl->Name()) > 0 )
+			locals.insert(bl);
+
+	ProfileFunc body_pf(s.get());
+	for ( auto& bl : body_pf.Locals() )
+		if ( prior_vars.count(bl->Name()) > 0 )
+			locals.insert(bl);
+
+	if ( timeout_s )
+		{
+		ProfileFunc to_pf(timeout_s.get());
+		for ( auto& tl : to_pf.Locals() )
+			if ( prior_vars.count(tl->Name()) > 0 )
+				locals.insert(tl);
+		}
+
+	if ( locals.empty() )
+		return false;
+
+	std::string vars;
+	for ( auto& l : locals )
+		{
+		if ( ! vars.empty() )
+			vars += ", ";
+		vars += l->Name();
+		}
+
+	std::string msg = util::fmt("\"when\" statement referring to locals without an "
+				    "explicit [] capture is deprecated: %s",
+				    vars.c_str());
+	ws->Warn(msg.c_str());
+
+	return true;
 	}
 
 void WhenInfo::BuildInvokeElems()
