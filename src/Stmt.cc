@@ -1859,9 +1859,11 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 		ft->SetExpressionlessReturnOkay(true);
 
 	auto id = current_scope()->GenerateTemporary("when-internal");
+	id->SetType(ft);
+	push_scope(std::move(id), nullptr);
 
-	// This begin_func will be completed by WhenInfo::Build().
-	begin_func(id, current_module.c_str(), FUNC_FLAVOR_FUNCTION, false, ft);
+	auto arg_id = install_ID(lambda_param_id.c_str(), current_module.c_str(), false, false);
+	arg_id->SetType(count_t);
 	}
 
 WhenInfo::WhenInfo(bool _is_return)
