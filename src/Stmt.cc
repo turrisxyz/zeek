@@ -1810,7 +1810,7 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 	ProfileFunc cond_pf(cond.get());
 
 	when_expr_locals = cond_pf.Locals();
-	when_expr_globals = cond_pf.Globals();
+	when_expr_globals = cond_pf.AllGlobals();
 	when_new_locals = cond_pf.WhenLocals();
 
 	// Make any when-locals part of our captures, if not already present,
