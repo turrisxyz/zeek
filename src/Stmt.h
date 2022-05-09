@@ -619,8 +619,9 @@ private:
 	// The name of parameter passed ot the lambda.
 	std::string lambda_param_id;
 
-	// The expression for constructing the lambda.
+	// The expression for constructing the lambda, and its type.
 	LambdaExprPtr lambda;
+	FuncTypePtr lambda_ft;
 
 	// The current instance of the lambda.  Created by Instantiate(),
 	// for immediate use via calls to Cond() etc.
@@ -639,6 +640,9 @@ private:
 
 	IDSet when_expr_locals;
 	IDSet when_expr_globals;
+
+	// Locals introduced via "local" in the "when" clause itself.
+	IDSet when_new_locals;
 
 	// Used for identifying deprecated instances.  Holds all of the local
 	// variables in the scope prior to parsing the "when" statement.

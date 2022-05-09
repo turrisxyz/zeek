@@ -1811,10 +1811,11 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 
 	when_expr_locals = cond_pf.Locals();
 	when_expr_globals = cond_pf.Globals();
+	when_new_locals = cond_pf.WhenLocals();
 
 	// Make any when-locals part of our captures, if not already present,
 	// to enable sharing between the condition and the body/timeout code.
-	for ( auto& wl : cond_pf.WhenLocals() )
+	for ( auto& wl : when_new_locals )
 		{
 		bool is_present = false;
 
@@ -1848,15 +1849,13 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 	param_list->push_back(new TypeDecl(util::copy_string(lambda_param_id.c_str()), count_t));
 	auto params = make_intrusive<RecordType>(param_list);
 
-	auto ft = make_intrusive<FuncType>(params, base_type(TYPE_ANY), FUNC_FLAVOR_FUNCTION);
-	if ( cl )
-		ft->SetCaptures(*cl);
+	lambda_ft = make_intrusive<FuncType>(params, base_type(TYPE_ANY), FUNC_FLAVOR_FUNCTION);
 
 	if ( ! is_return )
-		ft->SetExpressionlessReturnOkay(true);
+		lambda_ft->SetExpressionlessReturnOkay(true);
 
 	auto id = current_scope()->GenerateTemporary("when-internal");
-	id->SetType(ft);
+	id->SetType(lambda_ft);
 	push_scope(std::move(id), nullptr);
 
 	auto arg_id = install_ID(lambda_param_id.c_str(), current_module.c_str(), false, false);
@@ -1880,9 +1879,20 @@ void WhenInfo::Build(StmtPtr ws)
 		}
 
 	if ( ! cl )
-		// Indicate that this instance is compatible with new-style
-		// semantics.
+		{
+		// This instance is compatible with new-style semantics,
+		// so create a capture list for it and populate with any
+		// when-locals.
 		cl = new zeek::FuncType::CaptureList;
+
+		for ( auto& wl : when_new_locals )
+			{
+			IDPtr wl_ptr = {NewRef{}, const_cast<ID*>(wl)};
+			cl->emplace_back(FuncType::Capture{wl_ptr, false});
+			}
+		}
+
+	lambda_ft->SetCaptures(*cl);
 
 	// Our general strategy is to construct a single lambda (so that
 	// the values of captures are shared across all of its elements)
@@ -1987,14 +1997,14 @@ bool WhenInfo::IsDeprecatedSemantics(StmtPtr ws)
 	if ( cl )
 		return false;
 
-	ProfileFunc cond_pf(cond.get());
+	// Which locals of the outer function are used in any of the "when"
+	// elements.
+	IDSet locals;
 
-	for ( auto& wl : cond_pf.WhenLocals() )
+	for ( auto& wl : when_new_locals )
 		prior_vars.erase(wl->Name());
 
-	auto locals = when_expr_locals;
-
-	for ( auto& bl : cond_pf.Locals() )
+	for ( auto& bl : when_expr_locals )
 		if ( prior_vars.count(bl->Name()) > 0 )
 			locals.insert(bl);
 
