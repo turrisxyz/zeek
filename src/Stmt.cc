@@ -1862,8 +1862,7 @@ WhenInfo::WhenInfo(ExprPtr _cond, FuncType::CaptureList* _cl, bool _is_return)
 	arg_id->SetType(count_t);
 	}
 
-WhenInfo::WhenInfo(bool _is_return)
-	: is_return(_is_return)
+WhenInfo::WhenInfo(bool _is_return) : is_return(_is_return)
 	{
 	// This won't be needed once we remove the deprecated semantics.
 	cl = new zeek::FuncType::CaptureList;
@@ -1875,7 +1874,7 @@ void WhenInfo::Build(StmtPtr ws)
 	if ( IsDeprecatedSemantics(ws) )
 		{
 		pop_scope();
- 		return;
+		return;
 		}
 
 	if ( ! cl )
@@ -1991,7 +1990,7 @@ StmtPtr WhenInfo::TimeoutStmt()
 	auto invoke = make_intrusive<CallExpr>(curr_lambda, invoke_timeout);
 	return make_intrusive<ReturnStmt>(invoke, true);
 	}
- 
+
 bool WhenInfo::IsDeprecatedSemantics(StmtPtr ws)
 	{
 	if ( cl )
@@ -2033,8 +2032,8 @@ bool WhenInfo::IsDeprecatedSemantics(StmtPtr ws)
 		}
 
 	std::string msg = util::fmt("\"when\" statement referring to locals without an "
-				    "explicit [] capture is deprecated: %s",
-				    vars.c_str());
+	                            "explicit [] capture is deprecated: %s",
+	                            vars.c_str());
 	ws->Warn(msg.c_str());
 
 	return true;

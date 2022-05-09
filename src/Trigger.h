@@ -53,7 +53,8 @@ public:
 	        bool is_return, const Location* loc);
 
 	// Used for capture-list semantics.
-	Trigger(WhenInfo* wi, double timeout, const IDSet& globals, std::vector<ValPtr> local_aggrs, Frame* f, const Location* loc);
+	Trigger(WhenInfo* wi, double timeout, const IDSet& globals, std::vector<ValPtr> local_aggrs,
+	        Frame* f, const Location* loc);
 
 	~Trigger() override;
 

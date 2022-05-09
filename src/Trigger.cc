@@ -106,7 +106,8 @@ Trigger::Trigger(ExprPtr cond, StmtPtr body, StmtPtr timeout_stmts, double timeo
 	Init(cond, body, timeout_stmts, frame, is_return, location);
 	}
 
-Trigger::Trigger(WhenInfo* wi, double timeout, const IDSet& _globals, std::vector<ValPtr> _local_aggrs, Frame* f, const Location* loc)
+Trigger::Trigger(WhenInfo* wi, double timeout, const IDSet& _globals,
+                 std::vector<ValPtr> _local_aggrs, Frame* f, const Location* loc)
 	{
 	timeout_value = timeout;
 	globals = _globals;
