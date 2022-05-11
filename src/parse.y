@@ -325,7 +325,9 @@ zeek:
 			// location associated with global statements gets
 			// associated with the last @load'd file rather than
 			// the script that includes the global statements.
-			set_location(zeek::detail::GetCurrentLocation());
+			auto loc = zeek::detail::GetCurrentLocation();
+			if ( loc.filename )
+				set_location(loc);
 			}
 		stmt_list
 			{
