@@ -112,7 +112,7 @@ extern int conditional_epoch; // let's us track embedded conditionals
 // Whether the file we're currently parsing includes @if conditionals.
 extern bool current_file_has_conditionals;
 
-YYLTYPE GetCurrentLocation();
+extern YYLTYPE GetCurrentLocation();
 extern int yyerror(const char[]);
 extern int brolex();
 
@@ -319,12 +319,20 @@ static StmtPtr build_local(ID* id, Type* t, InitClass ic, Expr* e,
 %%
 
 zeek:
-		decl_list stmt_list
+		decl_list
+			{
+			// Without the following, in some scenarios the
+			// location associated with global statements gets
+			// associated with the last @load'd file rather than
+			// the script that includes the global statements.
+			set_location(zeek::detail::GetCurrentLocation());
+			}
+		stmt_list
 			{
 			if ( stmts )
-				stmts->AsStmtList()->Stmts().push_back($2);
+				stmts->AsStmtList()->Stmts().push_back($3);
 			else
-				stmts = $2;
+				stmts = $3;
 
 			// Any objects creates from here on out should not
 			// have file positions associated with them.
