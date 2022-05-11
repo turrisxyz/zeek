@@ -408,7 +408,7 @@ void CPPCompile::GenWhenStmt(const WhenStmt* w)
 	StartBlock();
 	Emit("CPP__wi = new WhenInfo(%s);", is_return);
 	for ( auto& wg : wi->WhenExprGlobals() )
-		Emit("CPP__w_globals.insert(find_global__CPP(\"%s\"));", wg->Name());
+		Emit("CPP__w_globals.insert(find_global__CPP(\"%s\").get());", wg->Name());
 	EndBlock();
 	NL();
 
