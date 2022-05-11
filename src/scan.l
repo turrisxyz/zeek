@@ -590,10 +590,11 @@ YYLTYPE zeek::detail::GetCurrentLocation()
 	return currloc;
 	}
 
-void zeek::detail::SetCurrentLocation(YYLTYPE currloc) {
+void zeek::detail::SetCurrentLocation(YYLTYPE currloc)
+	{
 	::filename = currloc.filename;
 	line_number = currloc.first_line;
-}
+	}
 
 static int load_files(const char* orig_file)
 	{
