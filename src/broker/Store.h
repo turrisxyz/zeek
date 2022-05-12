@@ -7,6 +7,7 @@
 
 #include "zeek/OpaqueVal.h"
 #include "zeek/Trigger.h"
+#include "zeek/Expr.h"
 #include "zeek/broker/data.bif.h"
 #include "zeek/broker/store.bif.h"
 
@@ -73,8 +74,8 @@ class StoreQueryCallback
 	{
 public:
 	StoreQueryCallback(zeek::detail::trigger::Trigger* arg_trigger,
-	                   const zeek::detail::CallExpr* arg_call, broker::store store)
-		: trigger(arg_trigger), call(arg_call), store(std::move(store))
+	                   const void* arg_assoc, broker::store store)
+		: trigger(arg_trigger), assoc(arg_assoc), store(std::move(store))
 		{
 		Ref(trigger);
 		}
@@ -83,14 +84,14 @@ public:
 
 	void Result(const RecordValPtr& result)
 		{
-		trigger->Cache(call, result.get());
+		trigger->Cache(assoc, result.get());
 		trigger->Release();
 		}
 
 	void Abort()
 		{
 		auto result = query_result();
-		trigger->Cache(call, result.get());
+		trigger->Cache(assoc, result.get());
 		trigger->Release();
 		}
 
@@ -100,7 +101,7 @@ public:
 
 private:
 	zeek::detail::trigger::Trigger* trigger;
-	const zeek::detail::CallExpr* call;
+	const void* assoc;
 	broker::store store;
 	};
 

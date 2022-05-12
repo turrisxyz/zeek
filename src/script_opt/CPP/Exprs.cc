@@ -342,7 +342,12 @@ string CPPCompile::GenCallExpr(const CallExpr* c, GenType gt)
 
 	string invoke_func = c->IsInWhen() ? "when_invoke__CPP" : "invoke__CPP";
 	auto args_list = string(", {") + GenExpr(args_l, GEN_VAL_PTR) + "}";
-	auto invoker = invoke_func + "(" + gen + args_list + ", f__CPP)";
+	auto invoker = invoke_func + "(" + gen + args_list + ", f__CPP";
+
+	if ( c->IsInWhen() )
+		invoker += ", (void*) &" + body_name;
+
+	invoker += ")";
 
 	if ( IsNativeType(t) && gt != GEN_VAL_PTR )
 		return invoker + NativeAccessor(t);

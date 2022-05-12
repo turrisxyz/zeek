@@ -419,7 +419,10 @@ void CPPCompile::GenWhenStmt(const WhenStmt* w)
 
 	Emit("CPP__wi->Instantiate(%s);", GenExpr(wi->Lambda(), GEN_NATIVE));
 
-	Emit("auto t = new trigger::Trigger(CPP__wi, %s, CPP__w_globals, CPP__local_aggrs, f__CPP, "
+	// We need a new frame for the trigger to unambiguously associate
+	// with, in case we're called multiple times with our existing frame.
+	Emit("auto new_frame = make_intrusive<Frame>(0, nullptr, nullptr);");
+	Emit("auto t = new trigger::Trigger(CPP__wi, %s, CPP__w_globals, CPP__local_aggrs, new_frame.get(), "
 	     "nullptr);",
 	     timeout_val);
 

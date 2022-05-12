@@ -325,7 +325,7 @@ bool Trigger::Eval()
 		{
 		Trigger* trigger = frame->GetTrigger();
 		assert(trigger);
-		assert(frame->GetCall());
+		assert(frame->GetTriggerAssoc());
 		assert(trigger->attached == this);
 
 #ifdef DEBUG
@@ -334,7 +334,7 @@ bool Trigger::Eval()
 		delete[] pname;
 #endif
 
-		auto queued = trigger->Cache(frame->GetCall(), v.get());
+		auto queued = trigger->Cache(frame->GetTriggerAssoc(), v.get());
 		trigger->Release();
 		frame->ClearTrigger();
 
@@ -379,7 +379,7 @@ void Trigger::Timeout()
 			{
 			Trigger* trigger = frame->GetTrigger();
 			assert(trigger);
-			assert(frame->GetCall());
+			assert(frame->GetTriggerAssoc());
 			assert(trigger->attached == this);
 
 #ifdef DEBUG
@@ -388,7 +388,7 @@ void Trigger::Timeout()
 			        pname);
 			delete[] pname;
 #endif
-			auto queued = trigger->Cache(frame->GetCall(), v.get());
+			auto queued = trigger->Cache(frame->GetTriggerAssoc(), v.get());
 			trigger->Release();
 			frame->ClearTrigger();
 
@@ -455,12 +455,12 @@ void Trigger::Attach(Trigger* trigger)
 	Hold();
 	}
 
-bool Trigger::Cache(const CallExpr* expr, Val* v)
+bool Trigger::Cache(const void* obj, Val* v)
 	{
 	if ( disabled || ! v )
 		return false;
 
-	ValCache::iterator i = cache.find(expr);
+	ValCache::iterator i = cache.find(obj);
 
 	if ( i != cache.end() )
 		{
@@ -469,7 +469,7 @@ bool Trigger::Cache(const CallExpr* expr, Val* v)
 		}
 
 	else
-		cache.insert(ValCache::value_type(expr, v));
+		cache.insert(ValCache::value_type(obj, v));
 
 	Ref(v);
 
@@ -477,11 +477,11 @@ bool Trigger::Cache(const CallExpr* expr, Val* v)
 	return true;
 	}
 
-Val* Trigger::Lookup(const CallExpr* expr)
+Val* Trigger::Lookup(const void* obj)
 	{
 	assert(! disabled);
 
-	ValCache::iterator i = cache.find(expr);
+	ValCache::iterator i = cache.find(obj);
 	return (i != cache.end()) ? i->second : 0;
 	}
 

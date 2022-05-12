@@ -41,21 +41,19 @@ inline ValPtr invoke__CPP(Func* f, std::vector<ValPtr> args, Frame* frame)
 	return f->Invoke(&args, frame);
 	}
 
+// The same, but raises an interpreter exception if the function does
+// not return a value.  Used for calls inside "when" conditions.  The
+// last argument is the address of the calling function; we just need
+// it to be distinct to the call, so we can associate a Trigger cache
+// with it.
+extern ValPtr when_invoke__CPP(Func* f, std::vector<ValPtr> args, Frame* frame, void* caller_addr);
+
+// Thrown when a call inside a "when" delays.
 class DelayedCallException : public InterpreterException
 	{
 public:
 	DelayedCallException() { }
 	};
-
-// The same, but raises an interpreter exception if the function does
-// not return a value.  Used for calls inside "when" conditions.
-inline ValPtr when_invoke__CPP(Func* f, std::vector<ValPtr> args, Frame* frame)
-	{
-	auto res = f->Invoke(&args, frame);
-	if ( ! res )
-		throw DelayedCallException();
-	return res;
-	}
 
 // Assigns the given value to the given global.  A separate function because
 // we also need to return the value, for use in assignment cascades.
