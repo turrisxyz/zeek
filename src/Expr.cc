@@ -4603,7 +4603,7 @@ ValPtr CallExpr::Eval(Frame* f) const
 	if ( func_val && v )
 		{
 		const zeek::Func* funcv = func_val->AsFunc();
-		const CallExpr* current_call = f ? f->GetCall() : nullptr;
+		auto current_assoc = f ? f->GetTriggerAssoc() : nullptr;
 
 		if ( f )
 			f->SetCall(this);
@@ -4612,7 +4612,7 @@ ValPtr CallExpr::Eval(Frame* f) const
 		ret = funcv->Invoke(&args, f);
 
 		if ( f )
-			f->SetCall(current_call);
+			f->SetTriggerAssoc(current_assoc);
 		}
 
 	return ret;
