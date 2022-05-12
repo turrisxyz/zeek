@@ -292,6 +292,7 @@ string CPPCompile::GenCallExpr(const CallExpr* c, GenType gt)
 	const auto& t = c->GetType();
 	auto f = c->Func();
 	auto args_l = c->Args();
+	bool is_async = c->IsInWhen();
 
 	auto gen = GenExpr(f, GEN_DONT_CARE);
 
@@ -304,8 +305,8 @@ string CPPCompile::GenCallExpr(const CallExpr* c, GenType gt)
 		bool is_compiled = compiled_simple_funcs.count(id_name) > 0;
 		bool was_compiled = hashed_funcs.count(id_name) > 0;
 
-		if ( is_compiled || was_compiled )
-			{
+		if ( ! is_async && (is_compiled || was_compiled) )
+			{ // Can call directly.
 			string fname;
 
 			if ( was_compiled )
@@ -340,11 +341,11 @@ string CPPCompile::GenCallExpr(const CallExpr* c, GenType gt)
 		// Indirect call.
 		gen = string("(") + gen + ")->AsFunc()";
 
-	string invoke_func = c->IsInWhen() ? "when_invoke__CPP" : "invoke__CPP";
+	string invoke_func = is_async ? "when_invoke__CPP" : "invoke__CPP";
 	auto args_list = string(", {") + GenExpr(args_l, GEN_VAL_PTR) + "}";
 	auto invoker = invoke_func + "(" + gen + args_list + ", f__CPP";
 
-	if ( c->IsInWhen() )
+	if ( is_async )
 		invoker += ", (void*) &" + body_name;
 
 	invoker += ")";
