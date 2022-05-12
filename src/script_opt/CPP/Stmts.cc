@@ -163,23 +163,26 @@ void CPPCompile::GenReturnStmt(const ReturnStmt* r)
 	{
 	auto e = r->StmtExpr();
 
-	if ( ! ret_type || ! e || e->GetType()->Tag() == TYPE_VOID || in_hook )
+	if ( in_hook )
+		Emit("return true;");
+
+	else if ( ! e && ret_type && ret_type->Tag() != TYPE_VOID )
+		// This occurs for ExpressionlessReturnOkay() functions.
+		Emit("return nullptr;");
+
+	else if ( ! ret_type || ! e || e->GetType()->Tag() == TYPE_VOID )
+		Emit("return;");
+
+	else
 		{
-		if ( in_hook )
-			Emit("return true;");
-		else
-			Emit("return;");
+		auto gt = ret_type->Tag() == TYPE_ANY ? GEN_VAL_PTR : GEN_NATIVE;
+		auto ret = GenExpr(e, gt);
 
-		return;
+		if ( e->GetType()->Tag() == TYPE_ANY )
+			ret = GenericValPtrToGT(ret, ret_type, gt);
+
+		Emit("return %s;", ret);
 		}
-
-	auto gt = ret_type->Tag() == TYPE_ANY ? GEN_VAL_PTR : GEN_NATIVE;
-	auto ret = GenExpr(e, gt);
-
-	if ( e->GetType()->Tag() == TYPE_ANY )
-		ret = GenericValPtrToGT(ret, ret_type, gt);
-
-	Emit("return %s;", ret);
 	}
 
 void CPPCompile::GenAddStmt(const ExprStmt* es)
