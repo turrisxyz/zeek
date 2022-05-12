@@ -425,8 +425,10 @@ void CPPCompile::GenWhenStmt(const WhenStmt* w)
 	// We need a new frame for the trigger to unambiguously associate
 	// with, in case we're called multiple times with our existing frame.
 	Emit("auto new_frame = make_intrusive<Frame>(0, nullptr, nullptr);");
-	Emit("new_frame->SetTrigger({NewRef{}, f__CPP->GetTrigger()});");
-	Emit("new_frame->SetTriggerAssoc(f__CPP->GetTriggerAssoc());");
+	Emit("auto curr_t = f__CPP->GetTrigger();");
+	Emit("auto curr_assoc = f__CPP->GetTriggerAssoc();");
+	Emit("new_frame->SetTrigger({NewRef{}, curr_t});");
+	Emit("new_frame->SetTriggerAssoc(curr_assoc);");
 
 	Emit("auto t = new trigger::Trigger(CPP__wi, %s, CPP__w_globals, CPP__local_aggrs, new_frame.get(), "
 	     "nullptr);",
@@ -434,6 +436,14 @@ void CPPCompile::GenWhenStmt(const WhenStmt* w)
 
 	auto loc_str = util::fmt("%s:%d-%d", loc->filename, loc->first_line, loc->last_line);
 	Emit("t->SetName(\"%s\");", loc_str);
+
+	if ( ret_type && ret_type->Tag() != TYPE_VOID )
+		{
+		Emit("ValPtr retval = {NewRef{}, curr_t->Lookup(curr_assoc)};");
+		Emit("if ( ! retval )");
+		Emit("\tthrow DelayedCallException();");
+		Emit("return %s;", GenericValPtrToGT("retval", ret_type, GEN_NATIVE));
+		}
 
 	Emit("}");
 	}
