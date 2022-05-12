@@ -261,7 +261,7 @@ public:
 	void SetCall(const CallExpr* arg_call)
 		{
 		call = arg_call;
-		SetTriggerAssoc((void*) call);
+		SetTriggerAssoc((void*)call);
 		}
 	const CallExpr* GetCall() const { return call; }
 

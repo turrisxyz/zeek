@@ -2830,8 +2830,10 @@ ValPtr IndexSliceAssignExpr::Eval(Frame* f) const
 	return nullptr;
 	}
 
-IndexExpr::IndexExpr(ExprPtr arg_op1, ListExprPtr arg_op2, bool arg_is_slice, bool arg_is_inside_when)
-	: BinaryExpr(EXPR_INDEX, std::move(arg_op1), std::move(arg_op2)), is_slice(arg_is_slice), is_inside_when(arg_is_inside_when)
+IndexExpr::IndexExpr(ExprPtr arg_op1, ListExprPtr arg_op2, bool arg_is_slice,
+                     bool arg_is_inside_when)
+	: BinaryExpr(EXPR_INDEX, std::move(arg_op1), std::move(arg_op2)), is_slice(arg_is_slice),
+	  is_inside_when(arg_is_inside_when)
 	{
 	if ( IsError() )
 		return;

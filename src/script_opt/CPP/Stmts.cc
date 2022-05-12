@@ -430,7 +430,8 @@ void CPPCompile::GenWhenStmt(const WhenStmt* w)
 	Emit("new_frame->SetTrigger({NewRef{}, curr_t});");
 	Emit("new_frame->SetTriggerAssoc(curr_assoc);");
 
-	Emit("auto t = new trigger::Trigger(CPP__wi, %s, CPP__w_globals, CPP__local_aggrs, new_frame.get(), "
+	Emit("auto t = new trigger::Trigger(CPP__wi, %s, CPP__w_globals, CPP__local_aggrs, "
+	     "new_frame.get(), "
 	     "nullptr);",
 	     timeout_val);
 

@@ -423,8 +423,8 @@ string CPPCompile::GenIndexExpr(const Expr* e, GenType gt)
 	if ( aggr_t->Tag() == TYPE_TABLE )
 		{
 		func = inside_when ? "when_index_table__CPP" : "index_table__CPP";
-		gen = func + "(" + GenExpr(aggr, GEN_NATIVE) + ", {" +
-		      GenExpr(e->GetOp2(), GEN_VAL_PTR) + "})";
+		gen = func + "(" + GenExpr(aggr, GEN_NATIVE) + ", {" + GenExpr(e->GetOp2(), GEN_VAL_PTR) +
+		      "})";
 		}
 
 	else if ( aggr_t->Tag() == TYPE_VECTOR )
@@ -445,8 +445,8 @@ string CPPCompile::GenIndexExpr(const Expr* e, GenType gt)
 		else
 			{
 			func = inside_when ? "when_index_vec__CPP" : "index_vec__CPP";
-			gen = func + "(" + GenExpr(aggr, GEN_NATIVE) + ", " +
-			      GenExpr(e->GetOp2(), GEN_NATIVE) + ")";
+			gen = func + "(" + GenExpr(aggr, GEN_NATIVE) + ", " + GenExpr(e->GetOp2(), GEN_NATIVE) +
+			      ")";
 			}
 		}
 

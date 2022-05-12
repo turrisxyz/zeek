@@ -5,9 +5,9 @@
 #include <broker/store.hh>
 #include <broker/store_event.hh>
 
+#include "zeek/Expr.h"
 #include "zeek/OpaqueVal.h"
 #include "zeek/Trigger.h"
-#include "zeek/Expr.h"
 #include "zeek/broker/data.bif.h"
 #include "zeek/broker/store.bif.h"
 
@@ -73,8 +73,8 @@ static std::optional<broker::timespan> convert_expiry(double e)
 class StoreQueryCallback
 	{
 public:
-	StoreQueryCallback(zeek::detail::trigger::Trigger* arg_trigger,
-	                   const void* arg_assoc, broker::store store)
+	StoreQueryCallback(zeek::detail::trigger::Trigger* arg_trigger, const void* arg_assoc,
+	                   broker::store store)
 		: trigger(arg_trigger), assoc(arg_assoc), store(std::move(store))
 		{
 		Ref(trigger);
