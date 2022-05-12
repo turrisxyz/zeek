@@ -422,6 +422,9 @@ void CPPCompile::GenWhenStmt(const WhenStmt* w)
 	// We need a new frame for the trigger to unambiguously associate
 	// with, in case we're called multiple times with our existing frame.
 	Emit("auto new_frame = make_intrusive<Frame>(0, nullptr, nullptr);");
+	Emit("new_frame->SetTrigger({NewRef{}, f__CPP->GetTrigger()});");
+	Emit("new_frame->SetTriggerAssoc(f__CPP->GetTriggerAssoc());");
+
 	Emit("auto t = new trigger::Trigger(CPP__wi, %s, CPP__w_globals, CPP__local_aggrs, new_frame.get(), "
 	     "nullptr);",
 	     timeout_val);
