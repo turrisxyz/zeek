@@ -62,6 +62,30 @@ ValPtr index_string__CPP(const StringValPtr& svp, vector<ValPtr> indices)
 	return index_string(svp->AsString(), index_val__CPP(move(indices)).get());
 	}
 
+ValPtr when_index_table__CPP(const TableValPtr& t, vector<ValPtr> indices)
+	{
+	auto v = index_table__CPP(t, std::move(indices));
+	if ( v && IndexExprWhen::evaluating > 0 )
+		IndexExprWhen::results.emplace_back(v);
+	return v;
+	}
+
+ValPtr when_index_vec__CPP(const VectorValPtr& vec, int index)
+	{
+	auto v = index_vec__CPP(vec, index);
+	if ( v && IndexExprWhen::evaluating > 0 )
+		IndexExprWhen::results.emplace_back(v);
+	return v;
+	}
+
+ValPtr when_index_slice__CPP(VectorVal* vec, const ListVal* lv)
+	{
+	auto v = index_slice(vec, lv);
+	if ( v && IndexExprWhen::evaluating > 0 )
+		IndexExprWhen::results.emplace_back(v);
+	return v;
+	}
+
 ValPtr when_invoke__CPP(Func* f, std::vector<ValPtr> args, Frame* frame, void* caller_addr)
 	{
 	auto trigger = frame->GetTrigger();

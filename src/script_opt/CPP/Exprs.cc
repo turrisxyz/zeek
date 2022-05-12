@@ -415,12 +415,17 @@ string CPPCompile::GenIndexExpr(const Expr* e, GenType gt)
 	{
 	auto aggr = e->GetOp1();
 	const auto& aggr_t = aggr->GetType();
+	bool inside_when = e->AsIndexExpr()->IsInsideWhen();
 
 	string gen;
+	string func;
 
 	if ( aggr_t->Tag() == TYPE_TABLE )
-		gen = string("index_table__CPP(") + GenExpr(aggr, GEN_NATIVE) + ", {" +
+		{
+		func = inside_when ? "when_index_table__CPP" : "index_table__CPP";
+		gen = func + "(" + GenExpr(aggr, GEN_NATIVE) + ", {" +
 		      GenExpr(e->GetOp2(), GEN_VAL_PTR) + "})";
+		}
 
 	else if ( aggr_t->Tag() == TYPE_VECTOR )
 		{
@@ -433,12 +438,16 @@ string CPPCompile::GenIndexExpr(const Expr* e, GenType gt)
 			auto& inds = op2->AsListExpr()->Exprs();
 			auto first = inds[0];
 			auto last = inds[1];
-			gen = string("index_slice(") + GenExpr(aggr, GEN_VAL_PTR) + ".get(), " +
+			func = inside_when ? "when_index_slice__CPP" : "index_slice";
+			gen = func + "(" + GenExpr(aggr, GEN_VAL_PTR) + ".get(), " +
 			      GenExpr(first, GEN_NATIVE) + ", " + GenExpr(last, GEN_NATIVE) + ")";
 			}
 		else
-			gen = string("index_vec__CPP(") + GenExpr(aggr, GEN_NATIVE) + ", " +
+			{
+			func = inside_when ? "when_index_vec__CPP" : "index_vec__CPP";
+			gen = func + "(" + GenExpr(aggr, GEN_NATIVE) + ", " +
 			      GenExpr(e->GetOp2(), GEN_NATIVE) + ")";
+			}
 		}
 
 	else if ( aggr_t->Tag() == TYPE_STRING )

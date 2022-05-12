@@ -33,6 +33,14 @@ extern ValPtr index_table__CPP(const TableValPtr& t, std::vector<ValPtr> indices
 extern ValPtr index_vec__CPP(const VectorValPtr& vec, int index);
 extern ValPtr index_string__CPP(const StringValPtr& svp, std::vector<ValPtr> indices);
 
+// The same, but for indexing happening inside a "when" clause.
+extern ValPtr when_index_table__CPP(const TableValPtr& t, std::vector<ValPtr> indices);
+extern ValPtr when_index_vec__CPP(const VectorValPtr& vec, int index);
+
+// For vector slices, we use the existing index_slice(), but we need a
+// custom one for those occurring inside a "when" clause.
+extern ValPtr when_index_slice__CPP(VectorVal* vec, const ListVal* lv);
+
 // Calls out to the given script or BiF function.  A separate function because
 // of the need to (1) construct the "args" vector using {} initializers,
 // but (2) needing to have the address of that vector.
